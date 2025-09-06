@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>График присутствия</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f4f6f9;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+      font-size: 14px;
+    }
+    h1, h3 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .btn {
+      padding: 10px 15px;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .btn.red { background: #e74c3c; }
+    .btn.green { background: #2ecc71; }
+    .btn.orange { background: #f39c12; }
+    input, select, button {
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      font-size: 14px;
+      overflow-x: auto;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #34495e;
+      color: white;
+    }
+    td {
+      height: 40px;
+      cursor: pointer;
+    }
+    .status {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 4px;
+      color: white;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .legend {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      font-size: 14px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend-color {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+    }
+    .form-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 15px;
+    }
+    .overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 99;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .popup {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📅 График присутствия</h1>
+
+    <!-- Кнопка для входа в режим администратора -->
+    <div style="text-align: center; margin-bottom: 20px;">
+      <button onclick="openAdminLogin()" class="btn orange">🔧 Управление сотрудниками</button>
+    </div>
+
+    <!-- Форма массового ввода -->
+    <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+      <h3>Укажите свой статус</h3>
+      <div class="form-group">
+        <div>
+          <label>Сотрудник:</label>
+          <select id="batchEmployee"></select>
+        </div>
+        <div>
+          <label>От:</label>
+          <input type="date" id="batchFrom" />
+        </div>
+        <div>
+          <label>До:</label>
+          <input type="date" id="batchTo" />
+        </div>
+        <div>
+          <label>Статус:</label>
+          <select id="batchStatus">
+            <option value="Офис">Офис</option>
+            <option value="Удалённо">Удалённо</option>
+            <option value="Отпуск">Отпуск</option>
+            <option value="Больничный">Больничный</option>
+            <option value="Командировка">Командировка</option>
+            <option value="Обучение">Обучение</option>
+            <option value="Другое">Другое</option>
+          </select>
+        </div>
+        <button onclick="applyBatchStatus()" class="btn green">Сохранить статус</button>
+      </div>
+    </div>
+
+    <!-- Управление периодом -->
+    <div class="form-group">
+      <div>
+        <label>От:</label>
+        <input type="date" id="viewFrom" />
+      </div>
+      <div>
+        <label>До:</label>
+        <input type="date" id="viewTo" />
+      </div>
+      <button onclick="generateSchedule()" class="btn">Показать</button>
+      <button onclick="setToday()" class="btn">Сегодня</button>
+      <button onclick="setOneWeekForward()" class="btn">Неделю вперёд</button>
+      <button onclick="setOneMonthForward()" class="btn">Месяц вперёд</button>
+    </div>
+
+    <!-- Таблица -->
+    <table id="schedule">
+      <thead><tr id="header-row"></tr></thead>
+      <tbody id="schedule-body"></tbody>
+    </table>
+
+    <!-- Легенда -->
+    <div class="legend">
+      <div class="legend-item"><div class="legend-color" style="background: #4CAF50;"></div> <span>Офис</span></div>
+      <div class="legend-item"><div class="legend-color" style="background: #2196F3;"></div> <span>Удалённо</span></div>
+      <div class="legend-item"><div class="legend-color" style="background: #FFC107;"></div> <span>Отпуск</span></div>
+      <div class="legend-item"><div class="legend-color" style="background: #F44336;"></div> <span>Больничный</span></div>
+      <div class="legend-item"><div class="legend-color" style="background: #FF9800;"></div> <span>Командировка</span></div>
+      <div class="legend-item"><div class="legend-color" style="background: #9C27B0;"></div> <span>Обучение</span></div>
+      <div class="legend-item"><div class="legend-color" style="background: #795548;"></div> <span>Другое</span></div>
+    </div>
+  </div>
+
+  <!-- Всплывающее окно: вход администратора -->
+  <div id="loginOverlay" class="overlay hidden">
+    <div class="popup">
+      <h3>Вход администратора</h3>
+      <input type="password" id="adminPassword" placeholder="Пароль" />
+      <div style="margin-top: 10px;">
+        <button onclick="closeAdminLogin()" class="btn">Отмена</button>
+        <button onclick="checkPassword()" class="btn green">Войти</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Всплывающее окно: управление сотрудниками -->
+  <div id="adminOverlay" class="overlay hidden">
+    <div class="popup" style="max-width: 600px;">
+      <h3>Управление сотрудниками</h3>
+      <div class="form-group">
+        <input type="text" id="newEmployee" placeholder="ФИО нового сотрудника" />
+        <button onclick="addEmployee()" class="btn green">Добавить</button>
+      </div>
+      <ul id="employeeList" style="list-style: none; padding: 0;"></ul>
+      <div style="text-align: center; margin-top: 20px;">
+        <button onclick="closeAdminPanel()" class="btn">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Всплывающее окно: редактирование статуса -->
+  <div id="editOverlay" class="overlay hidden">
+    <div class="popup">
+      <h3>Изменить статус</h3>
+      <select id="popupStatus">
+        <option value="">— пусто —</option>
+        <option value="Офис">Офис</option>
+        <option value="Удалённо">Удалённо</option>
+        <option value="Отпуск">Отпуск</option>
+        <option value="Больничный">Больничный</option>
+        <option value="Командировка">Командировка</option>
+        <option value="Обучение">Обучение</option>
+        <option value="Другое">Другое</option>
+      </select>
+      <div style="margin-top: 10px;">
+        <button onclick="closeEditPopup()" class="btn">Отмена</button>
+        <button onclick="saveEdit()" class="btn green">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 🔗 ВАЖНО: Замените на РАБОЧИЙ URL из Google Apps Script (после развертывания)
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwwnir3yvjMJTsN9WtI1i4cNF3NSl0fO09xQdzWERz0NmO-ePLwDhn3ncyXf2N83rVk/exec";
+
+    // 🔐 Пароль для администратора
+    const ADMIN_PASSWORD = "master123";
+
+    // Список сотрудников (сохраняется локально)
+    let employees = JSON.parse(localStorage.getItem("employees_v3")) || [
+      "Боброва Екатерина",
+      "Бажайкина Александра",
+      "Шевцова Любовь",
+      "Бачуринская Валерия",
+      "Космачева Ксения",
+      "Вязилова Надежда"
+    ];
+
+    let editingCell = null;
+    let allDates = [];
+    let scheduleData = {};
+
+    const statusColors = {
+      "Офис": "#4CAF50",
+      "Удалённо": "#2196F3",
+      "Отпуск": "#FFC107",
+      "Больничный": "#F44336",
+      "Командировка": "#FF9800",
+      "Обучение": "#9C27B0",
+      "Другое": "#795548"
+    };
+
+    // Сохраняем список сотрудников в localStorage
+    function saveEmployees() {
+      localStorage.setItem("employees_v3", JSON.stringify(employees));
+    }
+
+    // Загружаем данные с Google Таблицы
+    async function loadScheduleFromServer() {
+      try {
+        const response = await fetch(GOOGLE_SCRIPT_URL);
+        const json = await response.json();
+        
+        if (json.error) {
+          console.error("Ошибка сервера:", json.error);
+          alert("Ошибка загрузки: " + json.error);
+          return {};
+        }
+
+        const map = {};
+        if (json.data && Array.isArray(json.data)) {
+          json.data.forEach(row => {
+            if (row.ФИО && row.Дата && row.Статус) {
+              map[`${row.ФИО}_${row.Дата}`] = row.Статус;
+            }
+          });
+        }
+        return map;
+      } catch (e) {
+        console.error("Не удалось загрузить данные:", e);
+        alert("Не удалось подключиться к серверу. Проверьте интернет и URL.");
+        return {};
+      }
+    }
+
+    // Сохраняем статус в Google Таблицу
+    async function saveStatusToServer(employee, date, status) {
+      const payload = { ФИО: employee, Дата: date, Статус: status };
+      try {
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        if (result.error) console.error("Ошибка сохранения:", result.error);
+      } catch (e) {
+        alert("Не удалось сохранить данные. Проверьте интернет.");
+      }
+    }
+
+    // Инициализация
+    async function init() {
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById("batchFrom").value = today;
+      document.getElementById("batchTo").value = today;
+      document.getElementById("viewFrom").value = today;
+      document.getElementById("viewTo").value = today;
+
+      updateEmployeeDropdown();
+      scheduleData = await loadScheduleFromServer();
+      generateSchedule();
+    }
+
+    // Обновляем выпадающий список сотрудников
+    function updateEmployeeDropdown() {
+      const select = document.getElementById("batchEmployee");
+      select.innerHTML = "";
+      employees.forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        select.appendChild(opt);
+      });
+    }
+
+    // Вход в режим администратора
+    function openAdminLogin() {
+      document.getElementById("loginOverlay").classList.remove("hidden");
+    }
+    function closeAdminLogin() {
+      document.getElementById("loginOverlay").classList.add("hidden");
+      document.getElementById("adminPassword").value = "";
+    }
+    function checkPassword() {
+      const pwd = document.getElementById("adminPassword").value;
+      if (pwd === ADMIN_PASSWORD) {
+        document.getElementById("loginOverlay").classList.add("hidden");
+        openAdminPanel();
+      } else {
+        alert("Неверный пароль!");
+      }
+    }
+
+    // Управление сотрудниками
+    function openAdminPanel() {
+      const list = document.getElementById("employeeList");
+      list.innerHTML = "";
+      employees.forEach((name, index) => {
+        const li = document.createElement("li");
+        li.style.padding = "8px";
+        li.style.borderBottom = "1px solid #eee";
+        li.innerHTML = `
+          <span>${name}</span>
+          <button onclick="removeEmployee(${index})" class="btn red" style="float: right; padding: 5px 10px;">Удалить</button>
+        `;
+        list.appendChild(li);
+      });
+      document.getElementById("adminOverlay").classList.remove("hidden");
+    }
+    function closeAdminPanel() {
+      document.getElementById("adminOverlay").classList.add("hidden");
+      updateEmployeeDropdown();
+      generateSchedule();
+    }
+    function addEmployee() {
+      const input = document.getElementById("newEmployee");
+      const name = input.value.trim();
+      if (!name) {
+        alert("Введите ФИО");
+        return;
+      }
+      if (employees.includes(name)) {
+        alert("Такой сотрудник уже есть");
+        return;
+      }
+      employees.push(name);
+      saveEmployees();
+      input.value = "";
+      openAdminPanel();
+    }
+    function removeEmployee(index) {
+      if (confirm(`Удалить ${employees[index]}?`)) {
+        employees.splice(index, 1);
+        saveEmployees();
+        openAdminPanel();
+      }
+    }
+
+    // Массовое сохранение статуса
+    async function applyBatchStatus() {
+      const emp = document.getElementById("batchEmployee").value;
+      const from = document.getElementById("batchFrom").value;
+      const to = document.getElementById("batchTo").value;
+      const status = document.getElementById("batchStatus").value;
+
+      if (!from || !to || from > to) {
+        alert("Проверьте даты");
+        return;
+      }
+
+      if (!confirm(`Сохранить статус "${status}" для ${emp} с ${from} по ${to}?`)) return;
+
+      let current = new Date(from);
+      const end = new Date(to);
+      let saved = 0;
+
+      while (current <= end) {
+        const dateStr = current.toISOString().split('T')[0];
+        await saveStatusToServer(emp, dateStr, status);
+        scheduleData[`${emp}_${dateStr}`] = status;
+        saved++;
+        current.setDate(current.getDate() + 1);
+      }
+
+      alert(`Сохранено ${saved} записей. Данные синхронизированы.`);
+      generateSchedule();
+    }
+
+    // Генерация таблицы
+    function generateSchedule() {
+      const from = document.getElementById("viewFrom").value;
+      const to = document.getElementById("viewTo").value;
+      if (!from || !to || from > to) return;
+
+      allDates = [];
+      let current = new Date(from);
+      const end = new Date(to);
+      while (current <= end) {
+        allDates.push(current.toISOString().split('T')[0]);
+        current.setDate(current.getDate() + 1);
+      }
+
+      const header = document.getElementById("header-row");
+      header.innerHTML = "<th>ФИО</th>";
+      allDates.forEach(date => {
+        const d = new Date(date);
+        const day = d.getDate();
+        const month = d.toLocaleString('ru', { month: 'short' }).slice(0, 3);
+        header.innerHTML += `<th>${day}<br><small>${month}</small></th>`;
+      });
+
+      const body = document.getElementById("schedule-body");
+      body.innerHTML = "";
+
+      employees.forEach(emp => {
+        let row = `<tr><td><strong>${emp}</strong></td>`;
+        allDates.forEach(date => {
+          const key = `${emp}_${date}`;
+          const status = scheduleData[key] || "";
+          const color = status ? statusColors[status] : "#e0e0e0";
+          row += `<td onclick="openEdit('${key}', '${emp}', '${date}', this)" title="${emp} — ${date}">
+                    <div class="status" style="background:${color}">${status}</div>
+                  </td>`;
+        });
+        row += "</tr>";
+        body.innerHTML += row;
+      });
+    }
+
+    // Редактирование по клику
+    function openEdit(key, emp, date, cell) {
+      editingCell = { key, emp, date, cell };
+      document.getElementById("popupStatus").value = scheduleData[key] || "";
+      document.getElementById("editOverlay").classList.remove("hidden");
+    }
+    function closeEditPopup() {
+      document.getElementById("editOverlay").classList.add("hidden");
+    }
+    async function saveEdit() {
+      const status = document.getElementById("popupStatus").value;
+      const { emp, date, cell } = editingCell;
+
+      if (status) {
+        await saveStatusToServer(emp, date, status);
+        scheduleData[`${emp}_${date}`] = status;
+      } else {
+        delete scheduleData[`${emp}_${date}`];
+        await saveStatusToServer(emp, date, "");
+      }
+
+      const div = cell.querySelector(".status");
+      div.textContent = status;
+      div.style.background = status ? statusColors[status] : "#e0e0e0";
+
+      closeEditPopup();
+    }
+
+    // Быстрые периоды
+    function setToday() {
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById("viewFrom").value = today;
+      document.getElementById("viewTo").value = today;
+      generateSchedule();
+    }
+    function setOneWeekForward() {
+      const today = new Date();
+      const nextWeek = new Date(today);
+      nextWeek.setDate(today.getDate() + 6);
+      document.getElementById("viewFrom").value = today.toISOString().split('T')[0];
+      document.getElementById("viewTo").value = nextWeek.toISOString().split('T')[0];
+      generateSchedule();
+    }
+    function setOneMonthForward() {
+      const today = new Date();
+      const nextMonth = new Date(today);
+      nextMonth.setDate(today.getDate() + 30);
+      document.getElementById("viewFrom").value = today.toISOString().split('T')[0];
+      document.getElementById("viewTo").value = nextMonth.toISOString().split('T')[0];
+      generateSchedule();
+    }
+
+    // Загрузка при открытии
+    window.onload = init;
+  </script>
+</body>
+</html>
